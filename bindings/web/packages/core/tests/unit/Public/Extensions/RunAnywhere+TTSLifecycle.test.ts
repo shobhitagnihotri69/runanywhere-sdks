@@ -13,6 +13,7 @@ import {
 } from '@runanywhere/proto-ts/tts_options';
 import { TTSProtoAdapter } from '../../../../src/Adapters/TTSProtoAdapter';
 import type { ModalityProtoModule } from '../../../../src/Adapters/ProtoAdapterTypes';
+import type { ProtoWasmModule } from '../../../../src/runtime/ProtoWasm';
 import {
   synthesize,
   TTS,
@@ -38,7 +39,17 @@ interface TTSCallCounters {
   callbackRemovals: number;
 }
 
-interface FakeTTSModule extends EmscriptenRunanywhereModule, ModalityProtoModule {
+interface FakeTTSModule
+  extends EmscriptenRunanywhereModule,
+    Omit<
+      ModalityProtoModule,
+      | keyof ProtoWasmModule
+      | 'addFunction'
+      | 'removeFunction'
+      | '_rac_voice_agent_set_proto_callback'
+      | '_rac_llm_set_stream_proto_callback'
+      | '_rac_llm_unset_stream_proto_callback'
+    > {
   _rac_backend_onnx_register(): number;
   _rac_backend_sherpa_register(): number;
   _rac_tts_component_create(outHandlePtr: number): number;
@@ -243,7 +254,7 @@ function fakeTTSModule(): FakeTTSHarness {
     callbacks.get(callbackPointer)?.(eventPointer, bytes.byteLength, 0);
   };
 
-  const module: FakeTTSModule = {
+  const module: Partial<FakeTTSModule> = {
     HEAPU8: heapU8,
     HEAP32: heap32,
     HEAPU32: heapU32,
@@ -262,10 +273,10 @@ function fakeTTSModule(): FakeTTSHarness {
       heapU8[pointer + written] = 0;
       return written;
     },
-    addFunction(callback): number {
+    addFunction(callback: (...args: never[]) => number | bigint | void): number {
       const pointer = nextCallback;
       nextCallback += 1;
-      callbacks.set(pointer, callback);
+      callbacks.set(pointer, callback as unknown as (...args: number[]) => number | void);
       return pointer;
     },
     removeFunction(pointer): void {
@@ -382,10 +393,10 @@ function fakeTTSModule(): FakeTTSHarness {
     },
   };
 
-  installCurrentModelRegistryExports(module);
+  installCurrentModelRegistryExports(module as FakeTTSModule);
 
   return {
-    module,
+    module: module as FakeTTSModule,
     counters,
     lifecycleRequests,
     componentTexts,

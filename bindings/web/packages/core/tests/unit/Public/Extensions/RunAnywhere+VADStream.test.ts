@@ -6,6 +6,7 @@ import {
   VADStreamEventKind,
 } from '@runanywhere/proto-ts/vad_options';
 import type { ModalityProtoModule } from '../../../../src/Adapters/ProtoAdapterTypes';
+import type { ProtoWasmModule } from '../../../../src/runtime/ProtoWasm';
 import { VADProtoAdapter } from '../../../../src/Adapters/VADProtoAdapter';
 import {
   clearRunanywhereModule,
@@ -37,7 +38,17 @@ interface VADStreamCounters {
   fedByteLengths: number[];
 }
 
-interface FakeVADModule extends EmscriptenRunanywhereModule, ModalityProtoModule {
+interface FakeVADModule
+  extends EmscriptenRunanywhereModule,
+    Omit<
+      ModalityProtoModule,
+      | keyof ProtoWasmModule
+      | 'addFunction'
+      | 'removeFunction'
+      | '_rac_voice_agent_set_proto_callback'
+      | '_rac_llm_set_stream_proto_callback'
+      | '_rac_llm_unset_stream_proto_callback'
+    > {
   _rac_backend_onnx_register(): number;
   _rac_backend_sherpa_register(): number;
   _rac_vad_component_create(outHandlePtr: number): number;
@@ -98,7 +109,7 @@ function fakeVADModule(): FakeVADHarness {
     return new TextDecoder().decode(heapU8.subarray(ptr, end));
   };
 
-  const module: FakeVADModule = {
+  const module: Partial<FakeVADModule> = {
     HEAPU8: heapU8,
     HEAPU32: heapU32,
     HEAP32: new Int32Array(heap),
@@ -108,10 +119,10 @@ function fakeVADModule(): FakeVADHarness {
       return ptr;
     },
     _free: () => undefined,
-    addFunction(callback: (...args: number[]) => void | number): number {
+    addFunction(callback: (...args: never[]) => number | bigint | void, _signature?: string): number {
       const ptr = nextCallback;
       nextCallback += 1;
-      callbacks.set(ptr, callback);
+      callbacks.set(ptr, callback as unknown as (...args: number[]) => void | number);
       return ptr;
     },
     removeFunction(ptr: number): void {
@@ -237,9 +248,9 @@ function fakeVADModule(): FakeVADHarness {
     },
   };
 
-  installCurrentModelRegistryExports(module);
+  installCurrentModelRegistryExports(module as FakeVADModule);
 
-  return { module, counters };
+  return { module: module as FakeVADModule, counters };
 }
 
 async function* chunks(count: number): AsyncIterable<Float32Array> {

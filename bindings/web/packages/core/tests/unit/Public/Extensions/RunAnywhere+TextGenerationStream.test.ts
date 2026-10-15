@@ -36,6 +36,7 @@ import {
   ModalityProtoAdapter,
   type ModalityProtoModule,
 } from '../../../../src/Adapters/ModalityProtoAdapter';
+import type { ProtoWasmModule } from '../../../../src/runtime/ProtoWasm';
 import {
   clearRunanywhereModule,
   type EmscriptenRunanywhereModule,
@@ -78,7 +79,17 @@ interface StreamHandlers {
   onCancel?: () => void;
 }
 
-interface FakeModule extends ModalityProtoModule, EmscriptenRunanywhereModule {
+interface FakeModule
+  extends EmscriptenRunanywhereModule,
+    Omit<
+      ModalityProtoModule,
+      | keyof ProtoWasmModule
+      | 'addFunction'
+      | 'removeFunction'
+      | '_rac_voice_agent_set_proto_callback'
+      | '_rac_llm_set_stream_proto_callback'
+      | '_rac_llm_unset_stream_proto_callback'
+    > {
   /**
    * Number of times the in-flight cancellation entry point fired.
    * Asserted by the cancel test.
@@ -114,11 +125,11 @@ function makeFakeLLMModule(handlers: StreamHandlers): FakeModule {
   let nextCallbackId = 1;
 
   const addFunction = (
-    fn: (...args: number[]) => unknown,
+    fn: (...args: never[]) => number | bigint | void,
     _signature: string,
   ): number => {
     const id = nextCallbackId++;
-    callbackTable.set(id, fn as (bytesPtr: number, size: number) => unknown);
+    callbackTable.set(id, fn as unknown as (bytesPtr: number, size: number) => unknown);
     return id;
   };
 
@@ -462,7 +473,7 @@ describe('RunAnywhere.textGeneration.generateStream — live handle + cancel', (
   });
 
   it('observes the first token before the terminal event reaches `result`', async () => {
-    let resolveSecondToken: (() => void) | null = null;
+    let resolveSecondToken: () => void = () => {};
     const secondTokenGate = new Promise<void>((resolve) => {
       resolveSecondToken = resolve;
     });
@@ -505,7 +516,7 @@ describe('RunAnywhere.textGeneration.generateStream — live handle + cancel', (
     expect(first.value).toBe('A');
 
     // Release the gate (for symmetry — the fake didn't actually pause).
-    resolveSecondToken?.();
+    resolveSecondToken();
     await secondTokenGate;
 
     const second = await iterator.next();
