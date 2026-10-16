@@ -272,6 +272,15 @@ RAC_API void* rac_alloc(size_t size);
  */
 RAC_API char* rac_strdup(const char* str);
 
+/**
+ * Test hook: force the next call to rac_alloc or rac_strdup to return NULL.
+ *
+ * Cleared automatically after a single failure or when called with count = 0.
+ *
+ * @param count Number of consecutive allocations to fail (typically 1)
+ */
+RAC_API void rac_test_fail_next_alloc(size_t count);
+
 #ifdef __cplusplus
 }
 #endif

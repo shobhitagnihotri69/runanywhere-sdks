@@ -1181,6 +1181,37 @@ int test_stt_proto_adapters_mapping() {
           "transcription alternative confidence matches");
     rac_free(alt.text);
 
+    // 4. Forced allocation failure tests
+    // rac_stt_word_from_proto failure
+    rac_test_fail_next_alloc(1);
+    word = {};
+    word.start_ms = 999;
+    CHECK(!rac::foundation::rac_stt_word_from_proto(word_proto, &word),
+          "stt word adapter returns false on allocation failure");
+    CHECK(word.text == nullptr && word.start_ms == 0 && word.end_ms == 0,
+          "stt word adapter zeroes output on allocation failure");
+    rac_test_fail_next_alloc(0);
+
+    // rac_transcription_metadata_from_proto failure
+    rac_test_fail_next_alloc(1);
+    meta = {};
+    meta.processing_time_ms = 999;
+    CHECK(!rac::foundation::rac_transcription_metadata_from_proto(meta_proto, &meta),
+          "transcription metadata adapter returns false on allocation failure");
+    CHECK(meta.model_id == nullptr && meta.processing_time_ms == 0,
+          "transcription metadata adapter zeroes output on allocation failure");
+    rac_test_fail_next_alloc(0);
+
+    // rac_transcription_alternative_from_proto failure
+    rac_test_fail_next_alloc(1);
+    alt = {};
+    alt.confidence = 0.5f;
+    CHECK(!rac::foundation::rac_transcription_alternative_from_proto(alt_proto, &alt),
+          "transcription alternative adapter returns false on allocation failure");
+    CHECK(alt.text == nullptr && alt.confidence == 0.0f,
+          "transcription alternative adapter zeroes output on allocation failure");
+    rac_test_fail_next_alloc(0);
+
     return 0;
 }
 

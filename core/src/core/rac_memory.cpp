@@ -1,22 +1,40 @@
-/**
- * @file rac_memory.cpp
- * @brief RunAnywhere Commons - Memory Utilities
- *
- * Matches Swift's memory management patterns for C interop.
- */
-
+#include <atomic>
 #include <cstdlib>
 #include <cstring>
 
 #include "rac/core/rac_types.h"
 
+namespace {
+std::atomic<size_t> g_fail_alloc_count{0};
+
+bool should_fail_alloc() {
+    size_t count = g_fail_alloc_count.load(std::memory_order_relaxed);
+    while (count > 0) {
+        if (g_fail_alloc_count.compare_exchange_weak(count, count - 1, std::memory_order_relaxed)) {
+            return true;
+        }
+    }
+    return false;
+}
+}  // namespace
+
 extern "C" {
+
+/**
+ * Configure forced allocation failures for testing.
+ */
+void rac_test_fail_next_alloc(size_t count) {
+    g_fail_alloc_count.store(count, std::memory_order_relaxed);
+}
 
 /**
  * Allocate memory using the RAC allocator.
  */
 void* rac_alloc(size_t size) {
     if (size == 0) {
+        return nullptr;
+    }
+    if (should_fail_alloc()) {
         return nullptr;
     }
     return malloc(size);
@@ -38,6 +56,9 @@ void rac_free(void* ptr) {
  */
 char* rac_strdup(const char* str) {
     if (str == nullptr) {
+        return nullptr;
+    }
+    if (should_fail_alloc()) {
         return nullptr;
     }
 

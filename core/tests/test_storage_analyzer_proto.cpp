@@ -660,6 +660,15 @@ int test_model_storage_metrics_proto_adapter() {
     ASSERT_TRUE(metrics.model_id == nullptr);
     ASSERT_EQ(metrics.size_on_disk, 4096);
 
+    // Forced allocation failure test: must return false and leave all-zero output struct
+    rac_test_fail_next_alloc(1);
+    metrics = {};
+    metrics.size_on_disk = 999999;
+    ASSERT_TRUE(!rac::foundation::rac_model_storage_metrics_from_proto(proto, &metrics));
+    ASSERT_TRUE(metrics.model_id == nullptr);
+    ASSERT_EQ(metrics.size_on_disk, 0);
+    rac_test_fail_next_alloc(0);
+
     return 0;
 }
 

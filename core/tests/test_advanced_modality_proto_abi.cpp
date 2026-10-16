@@ -1108,6 +1108,17 @@ int test_embeddings_vector_mapping() {
               "embedding vector values match proto");
         rac_free(vec.data);
     }
+
+    // Forced allocation failure test: must return false and leave an all-zero output struct
+    rac_test_fail_next_alloc(1);
+    vec = {};
+    vec.dimension = 42;
+    CHECK(!rac::foundation::rac_embedding_vector_from_proto(non_empty_proto, &vec),
+          "embedding vector returns false on allocation failure");
+    CHECK(vec.dimension == 0 && vec.data == nullptr,
+          "embedding vector leaves zeroed output on allocation failure");
+    rac_test_fail_next_alloc(0);
+
     return 0;
 }
 
